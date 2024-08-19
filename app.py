@@ -9,6 +9,8 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 from streamlit_folium import st_folium
+import rasterio
+from typing import List, Tuple
 
 load_dotenv()
 
@@ -34,6 +36,14 @@ def load_data() -> pd.DataFrame:
 
     return avg_geo_cost_df
 
+def load_solar_tif() -> Tuple[np.ndarray, List[Tuple[float, float]]]:
+    tif = "data/pvout_atlantic.tif"
+    src = rasterio.open(tif)
+    array = src.read()
+    bounds = src.bounds
+    bbox = [(bounds.bottom, bounds.left), (bounds.top, bounds.right)]
+    return array, bbox
+
 # Base page info
 st.title("Energy Generation Planning App")
 
@@ -41,6 +51,9 @@ layer = st.selectbox("Feature", [None, "Congestion Cost"])
 
 # Load data
 df = load_data()
+
+#Load raster data
+pv, bbox = load_solar_tif()
 
 # Initialize a Folium map
 m = folium.Map(location=[39.653806, -77.152707], zoom_start=7)
@@ -50,6 +63,17 @@ costs = df["congestion_price_da"]
 min_value, max_value = min(costs), max(costs)
 colormap = cm.linear.YlOrRd_09.scale(min_value, max_value)
 colormap.add_to(m)
+
+#add solar potential raster data to map
+img = folium.raster_layers.ImageOverlay(
+    name="PV OUT",
+    image=np.moveaxis(pv, 0, -1),
+    bounds=bbox,
+    interactive=True,
+    cross_origin=False,
+    zindex=1,
+)
+img.add_to(m)
 
 for _, row in df.iterrows():
     linestrings = row["geometry"]
