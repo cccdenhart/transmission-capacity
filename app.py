@@ -68,16 +68,6 @@ colormap = cm.linear.YlOrRd_09.scale(min_value, max_value)
 colormap.add_to(m)
 
 #add solar potential raster data to map
-img = folium.raster_layers.ImageOverlay(
-    name="PV OUT",
-    image=np.moveaxis(pv, 0, -1),
-    bounds=bbox,
-    interactive=True,
-    cross_origin=False,
-    zindex=1,
-    show=False,
-)
-img.add_to(m)
 
 for _, row in df.iterrows():
     linestrings = row["geometry"]
