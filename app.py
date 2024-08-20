@@ -58,6 +58,9 @@ pv, bbox = load_solar_tif()
 # Initialize a Folium map
 m = folium.Map(location=[39.653806, -77.152707], zoom_start=7)
 
+# Add LayerControl to the map
+m.add_child(folium.LayerControl())
+
 # Add the colormap legend to the map
 costs = df["congestion_price_da"]
 min_value, max_value = min(costs), max(costs)
@@ -72,6 +75,7 @@ img = folium.raster_layers.ImageOverlay(
     interactive=True,
     cross_origin=False,
     zindex=1,
+    show=False,
 )
 img.add_to(m)
 
