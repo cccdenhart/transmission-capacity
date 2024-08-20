@@ -1,16 +1,16 @@
 import json
 import os
+from typing import List, Tuple
 
 import branca.colormap as cm
 import folium
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import rasterio
 import streamlit as st
 from dotenv import load_dotenv
 from streamlit_folium import st_folium
-import rasterio
-from typing import List, Tuple
 
 load_dotenv()
 
@@ -37,9 +37,10 @@ def load_data() -> pd.DataFrame:
         geo_cost_df.groupby(
             ["ID", "pnode_id", "pnode_name", "SUB_1", "SUB_2", "VOLTAGE", "geometry"]
         )
-        .mean("congestion_price_rt")
+        .mean(["congestion_price_rt", "VOLTAGE"])
         .reset_index()
     )
+    avg_geo_cost_df = avg_geo_cost_df.loc[avg_geo_cost_df["VOLTAGE"] > 0]
 
     return avg_geo_cost_df, nrel_solarpv_lcoe_df, nrel_wind_lcoe_df
 
@@ -51,8 +52,15 @@ def load_solar_tif() -> Tuple[np.ndarray, List[Tuple[float, float]]]:
     bbox = [(bounds.bottom, bounds.left), (bounds.top, bounds.right)]
     return array, bbox
 
+def get_colormap(values: List[float]) -> cm.ColorMap:
+    min_value, max_value = min(values), max(values)
+    colormap = cm.linear.YlOrRd_09.scale(min_value, max_value)
+    return colormap
+
 # Base page info
 st.title("Energy Generation Planning App")
+
+layer = st.selectbox("Feature", [None, "Congestion Cost", "Capacity"])
 
 # Load data
 geo_df, solar_lcoe, wind_lcoe = load_data()
@@ -70,11 +78,16 @@ solar_lcoe_group = folium.FeatureGroup(name = 'Solar LCOE Data').add_to(m)
 # wind_lcoe_group = folium.FeatureGroup(name = 'Wind LCOE Data').add_to(m)
 
 # Add the colormap legend to the map
-costs = geo_df["congestion_price_da"]
-min_value, max_value = min(costs), max(costs)
-colormap_congestion = cm.linear.YlOrRd_09.scale(min_value, max_value)
-colormap_congestion.caption = 'Congestion Colormap'
-colormap_congestion.add_to(m)
+if layer == "Congestion Cost":
+    color_values = df["congestion_price_da"].tolist()
+elif layer == "Capacity":
+    color_values = df["VOLTAGE"].tolist()
+else:
+    color_values = None
+
+if color_values:
+    colormap = get_colormap(color_values)
+    colormap.add_to(m)
 
 solar_lcoe_values = solar_lcoe["mean_lcoe"]
 colormap_solar_lcoe = cm.linear.YlOrRd_09.scale(min(solar_lcoe_values), max(solar_lcoe_values))
@@ -91,12 +104,56 @@ colormap_solar_lcoe.add_to(m)
 for _, row in geo_df.iterrows():
     linestrings = row["geometry"]
     name = row["ID"]
-    cost = row["congestion_price_da"]
+    cost = row["congestion_price_rt"]
+    volts = row["VOLTAGE"]
+    sub1 = row["SUB_1"]
+    sub2 = row["SUB_2"]
 
-    for linestring in linestrings.geoms:
+    for i, linestring in enumerate(linestrings.geoms):
         locations = np.flip(np.stack(linestring.xy, axis=1), axis=1)
-        color = colormap_congestion(cost)
-        folium.PolyLine(locations=locations, color=color, weight=5).add_to(congestion_group)
+
+        if layer == "Congestion Cost":
+            color = colormap(cost)  # Get color based on value
+            layer_val = f"${round(cost, 2)}"
+        elif layer == "Capacity":
+            color = colormap(volts)
+            layer_val = f"{volts} kV"
+        else:
+            color = "blue"
+            layer_val = None
+
+        line = folium.PolyLine(locations=locations, color=color, weight=5)
+
+        if layer_val:
+            tooltip = folium.Tooltip(f"{layer} = {layer_val}")
+            line.add_child(tooltip)
+            line.add_to(m)
+
+        # Add a substation point to the start of the PolyLine if it is the first line
+        if i == 0:
+            start_point = folium.CircleMarker(
+                location=locations[0],  # Start point coordinates
+                radius=3,
+                color='green',
+                fill=True,
+                fill_color='green',
+                fill_opacity=0.7,
+                tooltip=sub1
+            )
+            start_point.add_to(m)
+
+        # Add a substation point at the end of the PolyLine if it is the last line
+        if i == (len(linestrings.geoms) - 1):
+            end_point = folium.CircleMarker(
+                location=locations[-1],  # End point coordinates
+                radius=3,
+                color='green',
+                fill=True,
+                fill_color='green',
+                fill_opacity=0.7,
+                tooltip=sub2
+            )
+            end_point.add_to(m)
 
 
 
