@@ -1,12 +1,13 @@
 import json
 import os
-from typing import List
+from typing import List, Tuple
 
 import branca.colormap as cm
 import folium
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import rasterio
 import streamlit as st
 from dotenv import load_dotenv
 from streamlit_folium import st_folium
@@ -40,6 +41,15 @@ def get_colormap(values: List[float]) -> cm.ColorMap:
     min_value, max_value = min(values), max(values)
     colormap = cm.linear.YlOrRd_09.scale(min_value, max_value)
     return colormap
+
+@st.cache_data
+def load_solar_tif() -> Tuple[np.ndarray, List[Tuple[float, float]]]:
+    tif = "data/pvout_atlantic.tif"
+    src = rasterio.open(tif)
+    array = src.read()
+    bounds = src.bounds
+    bbox = [(bounds.bottom, bounds.left), (bounds.top, bounds.right)]
+    return array, bbox
 
 # Base page info
 st.title("Energy Generation Planning App")
