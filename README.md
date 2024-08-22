@@ -14,6 +14,14 @@ Follow the [instructions here](https://git-lfs.com/) to ensure git LFS is instal
 ### Dependencies
 `pip install -r requirements.txt`
 
+### Environment Variables
+
+Create a file named `.env` in the project root and store values for the following variables in there:
+- `NE_ISO_EMAIL`
+- `NE_ISO_PASSWORD`
+
+Request variable values from a project owner if needed.  For New England ISO credentials, visit [ISO Express](https://www.iso-ne.com/markets-operations/iso-express).
+
 ## Run the app
 
 `python -m streamlit run app.py`
