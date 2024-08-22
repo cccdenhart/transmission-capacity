@@ -63,7 +63,9 @@ layer = st.selectbox("Feature", [None, "Congestion Cost", "Capacity"])
 df = load_data()
 
 # Load substation data
+states = ['NY','NJ']
 substation_gdf = load_substation_data()
+substation_gdf = substation_gdf[substation_gdf['STATE'].isin(states)]
 
 # Initialize a Folium map
 m = folium.Map(location=[39.653806, -77.152707], zoom_start=7, prefer_canvas=True,)
