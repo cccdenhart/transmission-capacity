@@ -87,13 +87,18 @@ gdf.crs="EPSG:4326"
 
 folium.Choropleth(
     gdf,
+    columns=['ID', 'MAX_VOLT'],
+    key_on='feature.properties.MAX_VOLT',
     line_weight=3,
-    line_color='blue'
+    line_color='YlOrRd_09'
 ).add_to(m)
 
+name_voltage = substation_gdf[['NAME', 'MAX_VOLT']].values.tolist()
+popups = ["Name:{}<br>Max Voltage:{} kV".format(name, volt) for (name, volt) in name_voltage]
 marker_cluster = MarkerCluster(
     locations=substation_gdf[['LATITUDE', 'LONGITUDE']].values.tolist(),
     name="transmission network substations",
+    popups=popups,
     overlay=True,
     control=True,
 )
