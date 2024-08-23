@@ -217,11 +217,21 @@ substation_gdf = substation_gdf[substation_gdf["STATE"].isin(states)]
 # Base page info
 st.title("Energy Generation Planning App")
 
+st.write("This project aims to provide guidance for potential energy generation project developers in New England through:")
+st.markdown("""
+    * displaying where energy is currently most needed
+    * displaying where energy generation could be most profitable
+"""
+)  
+
+st.write("Demand for energy is visualized with congestion cost values and capacity values, which are color coded per transmission line on the map. Profitability is visualized through solar and wind cost projections.")
+st.write("Please select a feature to display on the map to continue.  If you don't select anything, just the existing transmission lines in the region are displayed.")
+
 # Retrieve input data
 layer = st.selectbox("Feature", [None, "Solar", "Wind", "Congestion Cost", "Capacity"])
 
 if layer == "Congestion Cost":
-    yesterday = datetime.now() - timedelta(days=1)
+    yesterday = datetime.now() - timedelta(days=2)
     input_date = st.date_input("Date", value=yesterday)
 else:
     input_date = None
