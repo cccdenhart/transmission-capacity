@@ -14,6 +14,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from requests.auth import HTTPBasicAuth
 from streamlit_folium import st_folium
+from folium.plugins import MarkerCluster
 
 load_dotenv()
 
@@ -138,6 +139,11 @@ def get_colormap(values: List[float]) -> cm.ColorMap:
     colormap = cm.linear.YlOrRd_09.scale(min_value, max_value)
     return colormap
 
+def get_colormap_substation(values: List[float]) -> cm.ColorMap:
+    max_value = max(values)
+    colormap = cm.linear.YlOrRd_09.scale(69, max_value) #69kV is real min value of max_volt in substations
+    return colormap
+
 @st.cache_data
 def load_solar_tif() -> Tuple[np.ndarray, List[Tuple[float, float]]]:
     tif = "data/pvout_atlantic.tif"
@@ -157,11 +163,26 @@ def in_region(x: int, y: int) -> bool:
         x > bottom_right[0]
     )
 
+@st.cache_data
+def load_substation_data() -> gpd.GeoDataFrame:
+    substation_fp = "data/Substations.csv"
+    substation_df = pd.read_csv(substation_fp)
+    substation_gdf = gpd.GeoDataFrame(
+        substation_df, geometry=gpd.points_from_xy(substation_df.LONGITUDE, substation_df.LATITUDE), crs="EPSG:4326"
+    )
+
+    return substation_gdf
+
 # Base page info
 st.title("Energy Generation Planning App")
 
 # Load static data
 base_df = load_base_data()
+
+# Load substation data
+states = ['MA','CT','RI']
+substation_gdf = load_substation_data()
+substation_gdf = substation_gdf[substation_gdf['STATE'].isin(states)]
 
 layer = st.selectbox("Feature", [None, "Congestion Cost", "Capacity"])
 
@@ -180,14 +201,21 @@ m = folium.Map(location=[42.140311, -72.604366], zoom_start=7, prefer_canvas=Tru
 # Add the colormap legend to the map
 if layer == "Congestion Cost":
     color_values = df["lmp"].tolist()
+    color_values_substation = None
 elif layer == "Capacity":
     color_values = df["VOLTAGE"].tolist()
+    color_values_substation = substation_gdf['MAX_VOLT'].tolist()
 else:
     color_values = None
+    color_values_substation = None
 
 if color_values:
     colormap = get_colormap(color_values)
     colormap.add_to(m)
+
+if color_values_substation:
+    colormap_substation = get_colormap_substation(color_values_substation)
+    colormap_substation.add_to(m)
 
 for _, row in df.iterrows():
     linestrings = row["geometry"]
@@ -220,29 +248,23 @@ for _, row in df.iterrows():
 
             line.add_to(m)
 
-            # Add a substation point to the start of the PolyLine if it is the first line
-            if i == 0:
-                start_point = folium.CircleMarker(
-                    location=locations[0],  # Start point coordinates
-                    radius=3,
-                    color='green',
-                    fill=True,
-                    fill_color='green',
-                    fill_opacity=0.7,
-                    tooltip=sub1
-                )
-                start_point.add_to(m)
+for _, row in substation_gdf.iterrows():
+    coordinate = row['geometry']
+    substation_name = row['NAME']
+    substation_max_voltage = row['MAX_VOLT']
+    if layer == 'Capacity':
+        color = colormap_substation(substation_max_voltage)
+    else:
+        color = 'green'
+    substation = folium.CircleMarker(
+        location=[coordinate.y, coordinate.x],
+        radius=2,
+        color=color,
+        fill=True,
+        fill_color=color,
+        fill_opacity=0.7,
+        popup=folium.Popup('Name:{}<br>Max Voltage:{} kV'.format(substation_name, substation_max_voltage))
+    )
+    substation.add_to(m)
 
-            # Add a substation point at the end of the PolyLine if it is the last line
-            if i == (len(linestrings.geoms) - 1) and len(locations) > 0 and len(locations[-1]) == 2:
-                end_point = folium.CircleMarker(
-                    location=locations[-1],  # End point coordinates
-                    radius=2,
-                    color='green',
-                    fill=True,
-                    fill_color='green',
-                    fill_opacity=0.7,
-                )
-                end_point.add_to(m)
-
-st_data = st_folium(m, width=725)
+st_data = st_folium(m, width=725, returned_objects=["last_object_clicked"])
