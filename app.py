@@ -18,6 +18,7 @@ from streamlit_folium import st_folium
 
 load_dotenv()
 
+
 @st.cache_data
 def load_base_data() -> pd.DataFrame:
     transmission_fp = "data/ne_iso_transmission.geojson"
@@ -36,23 +37,26 @@ def load_base_data() -> pd.DataFrame:
     pnodes_fp = "data/ne_iso_pnodes.csv"
     pnodes_df = pd.read_csv(pnodes_fp)
 
-    base_df = geo_df.merge(pnodes_df, left_on="SUB_1", right_on="Substation Long Name", how="inner")
+    base_df = geo_df.merge(
+        pnodes_df, left_on="SUB_1", right_on="Substation Long Name", how="inner"
+    )
     base_df["Node/Unit ID"] = base_df["Node/Unit ID"].astype(int)
 
     return base_df, nrel_solarpv_lcoe_df, nrel_wind_lcoe_df
 
+
 @st.cache_data
 def query_ne_iso_api(endpoint: str) -> dict:
-    base_url = 'https://webservices.iso-ne.com/api/v1.1'
+    base_url = "https://webservices.iso-ne.com/api/v1.1"
     url = base_url + endpoint
     username = os.getenv("NE_ISO_EMAIL")
     password = os.getenv("NE_ISO_PASSWORD")
-    headers = {
-        'Accept': 'application/json'
-    }
+    headers = {"Accept": "application/json"}
 
     # Make the GET request with basic authentication
-    response = requests.get(url, auth=HTTPBasicAuth(username, password), headers=headers)
+    response = requests.get(
+        url, auth=HTTPBasicAuth(username, password), headers=headers
+    )
 
     if not response.status_code == 200:
         print(f"Failed with status code: {response.status_code}")
@@ -84,16 +88,21 @@ def query_congestion(day: Optional[date]) -> pd.DataFrame:
             "lmp": record["LmpTotal"],
             "congestion": record["CongestionComponent"],
             "energy": record["EnergyComponent"],
-            "loss": record["LossComponent"]
+            "loss": record["LossComponent"],
         }
         rows.append(row)
 
     lmp_df = pd.DataFrame(rows)
     lmp_df["date"] = pd.to_datetime(lmp_df["date"])
     lmp_df["loc_id"] = lmp_df["loc_id"].astype(int)
-    day_lmp_df = lmp_df.groupby([pd.Grouper(key='date', freq='D'), lmp_df.loc_id]).mean().reset_index()
+    day_lmp_df = (
+        lmp_df.groupby([pd.Grouper(key="date", freq="D"), lmp_df.loc_id])
+        .mean()
+        .reset_index()
+    )
 
     return day_lmp_df
+
 
 @st.cache_data
 def query_capability(day: Optional[date]) -> pd.DataFrame:
@@ -116,7 +125,7 @@ def query_capability(day: Optional[date]) -> pd.DataFrame:
                 "date": record["BeginDate"],
                 "loc_id": location["Location"]["@LocId"],
                 "import_mw": location["ImportLimitMw"],
-                "export_mw": location["ExportLimitMw"]
+                "export_mw": location["ExportLimitMw"],
             }
             rows.append(row)
 
@@ -126,6 +135,7 @@ def query_capability(day: Optional[date]) -> pd.DataFrame:
 
     return ttc_df
 
+
 @st.cache_data
 def merge_api_data(layer: str, input_date: date) -> pd.DataFrame:
     global base_df
@@ -134,11 +144,13 @@ def merge_api_data(layer: str, input_date: date) -> pd.DataFrame:
         api_df = query_congestion(input_date)
     else:
         return base_df
-    
+
     df = api_df.merge(base_df, left_on="loc_id", right_on="Node/Unit ID", how="inner")
 
     return df
 
+
+@st.cache_data
 def load_solar_tif() -> Tuple[np.ndarray, List[Tuple[float, float]]]:
     tif = "data/pvout_atlantic.tif"
     src = rasterio.open(tif)
@@ -146,16 +158,21 @@ def load_solar_tif() -> Tuple[np.ndarray, List[Tuple[float, float]]]:
     bounds = src.bounds
     bbox = [(bounds.bottom, bounds.left), (bounds.top, bounds.right)]
     return array, bbox
+
 
 def get_colormap(values: List[float]) -> cm.ColorMap:
     min_value, max_value = min(values), max(values)
     colormap = cm.linear.YlOrRd_09.scale(min_value, max_value)
     return colormap
 
+
 def get_colormap_substation(values: List[float]) -> cm.ColorMap:
     max_value = max(values)
-    colormap = cm.linear.YlOrRd_09.scale(69, max_value) #69kV is real min value of max_volt in substations
+    colormap = cm.linear.YlOrRd_09.scale(
+        69, max_value
+    )  # 69kV is real min value of max_volt in substations
     return colormap
+
 
 @st.cache_data
 def load_solar_tif() -> Tuple[np.ndarray, List[Tuple[float, float]]]:
@@ -166,53 +183,47 @@ def load_solar_tif() -> Tuple[np.ndarray, List[Tuple[float, float]]]:
     bbox = [(bounds.bottom, bounds.left), (bounds.top, bounds.right)]
     return array, bbox
 
+
+@st.cache_data
 def in_region(x: int, y: int) -> bool:
     top_left = [45.085031, -73.539937]
     bottom_right = [41.205254, -70.313054]
     return (
-        y > top_left[1] and 
-        y < bottom_right[1] and
-        x < top_left[0] and
-        x > bottom_right[0]
+        y > top_left[1]
+        and y < bottom_right[1]
+        and x < top_left[0]
+        and x > bottom_right[0]
     )
+
 
 @st.cache_data
 def load_substation_data() -> gpd.GeoDataFrame:
     substation_fp = "data/Substations.csv"
     substation_df = pd.read_csv(substation_fp)
     substation_gdf = gpd.GeoDataFrame(
-        substation_df, geometry=gpd.points_from_xy(substation_df.LONGITUDE, substation_df.LATITUDE), crs="EPSG:4326"
+        substation_df,
+        geometry=gpd.points_from_xy(substation_df.LONGITUDE, substation_df.LATITUDE),
+        crs="EPSG:4326",
     )
 
     return substation_gdf
 
+
+# Load data
+base_df, solar_lcoe, wind_lcoe = load_base_data()
+pv, bbox = load_solar_tif()
+
+# Load substation data
+states = ["MA", "CT", "RI", "NH", "VT", "ME"]
+substation_gdf = load_substation_data()
+substation_gdf = substation_gdf[substation_gdf["STATE"].isin(states)]
+
 # Base page info
 st.title("Energy Generation Planning App")
 
-# Load static data
-base_df = load_base_data()
+# Retrieve input data
+layer = st.selectbox("Feature", [None, "Solar", "Congestion Cost", "Capacity"])
 
-# Load substation data
-states = ['MA','CT','RI']
-substation_gdf = load_substation_data()
-substation_gdf = substation_gdf[substation_gdf['STATE'].isin(states)]
-
-layer = st.selectbox("Feature", [None, "Congestion Cost", "Capacity"])
-
-# Load data
-geo_df, solar_lcoe, wind_lcoe = load_base_data()
-
-#Load raster data
-pv, bbox = load_solar_tif()
-
-# Initialize a Folium map
-m = folium.Map(location=[39.653806, -77.152707], zoom_start=5)
-
-#add groups for each layer
-
-congestion_group = folium.FeatureGroup(name = 'Congestion Data').add_to(m)
-solar_lcoe_group = folium.FeatureGroup(name = 'Solar LCOE Data').add_to(m)
-# wind_lcoe_group = folium.FeatureGroup(name = 'Wind LCOE Data').add_to(m)
 if layer == "Congestion Cost":
     yesterday = datetime.now() - timedelta(days=1)
     input_date = st.date_input("Date", value=yesterday)
@@ -225,103 +236,113 @@ df = merge_api_data(layer, input_date)
 # Initialize a Folium map
 m = folium.Map(location=[42.140311, -72.604366], zoom_start=7, prefer_canvas=True)
 
-# Add the colormap legend to the map
-if layer == "Congestion Cost":
-    color_values = df["lmp"].tolist()
-    color_values_substation = None
-elif layer == "Capacity":
-    color_values = df["VOLTAGE"].tolist()
-    color_values_substation = substation_gdf['MAX_VOLT'].tolist()
-else:
-    color_values = None
-    color_values_substation = None
+if layer == "Solar":
+    # add groups for each layer
+    congestion_group = folium.FeatureGroup(name="Congestion Data").add_to(m)
+    solar_lcoe_group = folium.FeatureGroup(name="Solar LCOE Data").add_to(m)
+    # wind_lcoe_group = folium.FeatureGroup(name = 'Wind LCOE Data').add_to(m)
 
-if color_values:
-    colormap = get_colormap(color_values)
-    colormap.add_to(m)
-
-solar_lcoe_values = solar_lcoe["mean_lcoe"]
-colormap_solar_lcoe = cm.linear.YlOrRd_09.scale(min(solar_lcoe_values), max(solar_lcoe_values))
-colormap_solar_lcoe.caption = 'Mean Solar LCOE Colormap'
-colormap_solar_lcoe.add_to(m)
-
-# wind_lcoe_values = wind_lcoe["mean_lcoe"]
-# colormap_wind_lcoe = cm.linear.YlOrRd_09.scale(min(wind_lcoe_values), max(wind_lcoe_values))
-# colormap_wind_lcoe.caption = 'Mean Wind LCOE Colormap'
-# colormap_wind_lcoe.add_to(m)
-
-
-# ## Congestion Data
-if color_values_substation:
-    colormap_substation = get_colormap_substation(color_values_substation)
-    colormap_substation.add_to(m)
-
-for _, row in df.iterrows():
-    linestrings = row["geometry"]
-    name = row["ID"]
-    sub1 = row["SUB_1"]
-    sub2 = row["SUB_2"]
-    volts = row["VOLTAGE"]
-
-    for i, linestring in enumerate(linestrings.geoms):
-        locations = np.flip(np.stack(linestring.xy, axis=1), axis=1)
-
-        if in_region(*locations[0]):
-
-            if layer == "Congestion Cost":
-                cost = row["lmp"]
-                color = colormap(cost)  # Get color based on value
-                layer_val = f"${round(cost, 2)}"
-            elif layer == "Capacity":
-                color = colormap(volts)
-                layer_val = f"{volts} kV"
-            else:
-                color = "blue"
-                layer_val = None
-
-            line = folium.PolyLine(locations=locations, color=color, weight=3)
-
-            if layer_val:
-                tooltip = folium.Tooltip(f"{layer} = {layer_val}")
-                line.add_child(tooltip)
-
-            line.add_to(m)
-
-for _, row in substation_gdf.iterrows():
-    coordinate = row['geometry']
-    substation_name = row['NAME']
-    substation_max_voltage = row['MAX_VOLT']
-    if layer == 'Capacity':
-        color = colormap_substation(substation_max_voltage)
-    else:
-        color = 'green'
-    substation = folium.CircleMarker(
-        location=[coordinate.y, coordinate.x],
-        radius=2,
-        color=color,
-        fill=True,
-        fill_color=color,
-        fill_opacity=0.7,
-        popup=folium.Popup('Name:{}<br>Max Voltage:{} kV'.format(substation_name, substation_max_voltage))
+    solar_lcoe_values = solar_lcoe["mean_lcoe"]
+    colormap_solar_lcoe = cm.linear.YlOrRd_09.scale(
+        min(solar_lcoe_values), max(solar_lcoe_values)
     )
-    substation.add_to(m)
+    colormap_solar_lcoe.caption = "Mean Solar LCOE Colormap"
+    colormap_solar_lcoe.add_to(m)
 
+    ## Solar LCOE Data
+    for _, row in solar_lcoe.iterrows():
+        lat = row["latitude"]
+        lon = row["longitude"]
+        solar_lcoe = row["mean_lcoe"]
+        color = colormap_solar_lcoe(solar_lcoe)
 
-## Solar LCOE Data
-for _,row in solar_lcoe.iterrows():
-    lat = row["latitude"]
-    lon = row["longitude"]
-    solar_lcoe = row["mean_lcoe"]
-    color = colormap_solar_lcoe(solar_lcoe)
+        folium.Circle(
+            location=[lat, lon], color=color, fill_color=color, radius=100
+        ).add_to(solar_lcoe_group)
 
+    # Add LayerControl to the map
+    folium.LayerControl().add_to(m)
 
-    folium.Circle(
-        location = [lat, lon],
-        color = color,
-        fill_color = color,
-        radius = 100
-    ).add_to(solar_lcoe_group)
+else:
+    # Add the colormap legend to the map
+    if layer == "Congestion Cost":
+        color_values = df["lmp"].tolist()
+        color_values_substation = None
+    elif layer == "Capacity":
+        color_values = df["VOLTAGE"].tolist()
+        color_values_substation = substation_gdf["MAX_VOLT"].tolist()
+    else:
+        color_values = None
+        color_values_substation = None
 
+    if color_values:
+        colormap = get_colormap(color_values)
+        colormap.add_to(m)
+
+    # wind_lcoe_values = wind_lcoe["mean_lcoe"]
+    # colormap_wind_lcoe = cm.linear.YlOrRd_09.scale(min(wind_lcoe_values), max(wind_lcoe_values))
+    # colormap_wind_lcoe.caption = 'Mean Wind LCOE Colormap'
+    # colormap_wind_lcoe.add_to(m)
+
+    # ## Congestion Data
+    if color_values_substation:
+        colormap_substation = get_colormap_substation(color_values_substation)
+        colormap_substation.add_to(m)
+
+    for _, row in df.iterrows():
+        linestrings = row["geometry"]
+        name = row["ID"]
+        sub1 = row["SUB_1"]
+        sub2 = row["SUB_2"]
+        volts = row["VOLTAGE"]
+
+        for i, linestring in enumerate(linestrings.geoms):
+            locations = np.flip(np.stack(linestring.xy, axis=1), axis=1)
+
+            if in_region(*locations[0]):
+
+                if layer == "Congestion Cost":
+                    cost = row["lmp"]
+                    color = colormap(cost)  # Get color based on value
+                    layer_val = f"${round(cost, 2)}"
+                elif layer == "Capacity":
+                    color = colormap(volts)
+                    layer_val = f"{volts} kV"
+                else:
+                    color = "blue"
+                    layer_val = None
+
+                line = folium.PolyLine(locations=locations, color=color, weight=3)
+
+                if layer_val:
+                    tooltip = folium.Tooltip(f"{layer} = {layer_val}")
+                    line.add_child(tooltip)
+
+                line.add_to(m)
+
+    for _, row in substation_gdf.iterrows():
+        coordinate = row["geometry"]
+        substation_name = row["NAME"]
+        substation_max_voltage = row["MAX_VOLT"]
+        if layer == "Capacity":
+            color = colormap_substation(substation_max_voltage)
+        else:
+            color = "green"
+        substation = folium.CircleMarker(
+            location=[coordinate.y, coordinate.x],
+            radius=2,
+            color=color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.7,
+            # tooltip="Name:{}<br>Max Voltage:{} kV".format(substation_name, substation_max_voltage),
+            popup=folium.Popup(
+                "Name:{}<br>Max Voltage:{} kV".format(
+                    substation_name, substation_max_voltage
+                )
+            ),
+        )
+        substation.add_to(m)
 
 
 # ## Wind LCOE Data
@@ -339,7 +360,4 @@ for _,row in solar_lcoe.iterrows():
 #         radius = 100
 #     ).add_to(wind_lcoe_group)
 
-# Add LayerControl to the map
-folium.LayerControl().add_to(m)
-
-st_data = st_folium(m, width=725, returned_objects=["last_object_clicked"])
+st_data = st_folium(m, width=725, returned_objects=[])
