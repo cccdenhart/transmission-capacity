@@ -223,7 +223,7 @@ substation_gdf = substation_gdf[substation_gdf["STATE"].isin(states)]
 st.title("Energy Generation Planning App")
 
 # Retrieve input data
-layer = st.selectbox("Feature", [None, "Solar", "Congestion Cost", "Capacity"])
+layer = st.selectbox("Feature", [None, "Solar", "Wind", "Congestion Cost", "Capacity"])
 
 if layer == "Congestion Cost":
     yesterday = datetime.now() - timedelta(days=1)
