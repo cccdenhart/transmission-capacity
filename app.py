@@ -206,8 +206,9 @@ def load_substation_data() -> gpd.GeoDataFrame:
         crs="EPSG:4326",
     )
 
-    return substation_gdf
+    substation_gdf = substation_gdf.loc[substation_gdf["MAX_VOLT"] > 0]
 
+    return substation_gdf
 
 # Load data
 base_df, solar_lcoe, wind_lcoe = load_base_data()
@@ -240,7 +241,6 @@ if layer == "Solar":
     # add groups for each layer
     congestion_group = folium.FeatureGroup(name="Congestion Data").add_to(m)
     solar_lcoe_group = folium.FeatureGroup(name="Solar LCOE Data").add_to(m)
-    # wind_lcoe_group = folium.FeatureGroup(name = 'Wind LCOE Data').add_to(m)
 
     solar_lcoe_values = solar_lcoe["mean_lcoe"]
     colormap_solar_lcoe = cm.linear.YlOrRd_09.scale(
@@ -263,31 +263,41 @@ if layer == "Solar":
     # Add LayerControl to the map
     folium.LayerControl().add_to(m)
 
+elif layer == "Wind":
+    wind_lcoe_group = folium.FeatureGroup(name = 'Wind LCOE Data').add_to(m)
+
+    wind_lcoe_values = wind_lcoe["mean_lcoe"]
+    colormap_wind_lcoe = cm.linear.YlOrRd_09.scale(min(wind_lcoe_values), max(wind_lcoe_values))
+    colormap_wind_lcoe.caption = 'Mean Wind LCOE Colormap'
+    colormap_wind_lcoe.add_to(m)
+
+    ## Wind LCOE Data
+    for _,row in wind_lcoe.iterrows():
+        lat = row["latitude"]
+        lon = row["longitude"]
+        wind_lcoe = row["mean_lcoe"]
+        color = colormap_wind_lcoe(wind_lcoe)
+
+        folium.Circle(
+            location = [lat, lon],
+            color = color,
+            fill_color = color,
+            radius = 100
+        ).add_to(wind_lcoe_group)
 else:
     # Add the colormap legend to the map
     if layer == "Congestion Cost":
         color_values = df["lmp"].tolist()
-        color_values_substation = None
     elif layer == "Capacity":
         color_values = df["VOLTAGE"].tolist()
         color_values_substation = substation_gdf["MAX_VOLT"].tolist()
+        color_values += color_values_substation
     else:
         color_values = None
-        color_values_substation = None
 
     if color_values:
         colormap = get_colormap(color_values)
         colormap.add_to(m)
-
-    # wind_lcoe_values = wind_lcoe["mean_lcoe"]
-    # colormap_wind_lcoe = cm.linear.YlOrRd_09.scale(min(wind_lcoe_values), max(wind_lcoe_values))
-    # colormap_wind_lcoe.caption = 'Mean Wind LCOE Colormap'
-    # colormap_wind_lcoe.add_to(m)
-
-    # ## Congestion Data
-    if color_values_substation:
-        colormap_substation = get_colormap_substation(color_values_substation)
-        colormap_substation.add_to(m)
 
     for _, row in df.iterrows():
         linestrings = row["geometry"]
@@ -325,7 +335,7 @@ else:
         substation_name = row["NAME"]
         substation_max_voltage = row["MAX_VOLT"]
         if layer == "Capacity":
-            color = colormap_substation(substation_max_voltage)
+            color = colormap(substation_max_voltage)
         else:
             color = "green"
         substation = folium.CircleMarker(
@@ -335,7 +345,6 @@ else:
             fill=True,
             fill_color=color,
             fill_opacity=0.7,
-            # tooltip="Name:{}<br>Max Voltage:{} kV".format(substation_name, substation_max_voltage),
             popup=folium.Popup(
                 "Name:{}<br>Max Voltage:{} kV".format(
                     substation_name, substation_max_voltage
@@ -344,20 +353,5 @@ else:
         )
         substation.add_to(m)
 
-
-# ## Wind LCOE Data
-# for _,row in wind_lcoe.iterrows():
-#     lat = row["latitude"]
-#     lon = row["longitude"]
-#     wind_lcoe = row["mean_lcoe"]
-#     color = colormap_wind_lcoe(wind_lcoe)
-
-
-#     folium.Circle(
-#         location = [lat, lon],
-#         color = color,
-#         fill_color = color,
-#         radius = 100
-#     ).add_to(wind_lcoe_group)
 
 st_data = st_folium(m, width=725, returned_objects=[])
