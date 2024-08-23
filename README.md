@@ -5,6 +5,8 @@ This project is a web app that is designed to help energy generation project man
 - congestion costs
 - existing solar/wind generation
 
+You can view this app live at [sfc-transmission-planner.streamlit.app](https://sfc-transmission-planner.streamlit.app)
+
 [![Project Demo](hero.png)](https://www.youtube.com/watch?v=jO1Np_8-yOs)
 
 ## Setup
