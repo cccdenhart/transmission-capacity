@@ -1,5 +1,4 @@
 import json
-import os
 from datetime import date, datetime, timedelta
 from typing import List, Optional, Tuple
 
@@ -11,12 +10,8 @@ import pandas as pd
 import rasterio
 import requests
 import streamlit as st
-from dotenv import load_dotenv
-from folium.plugins import MarkerCluster
 from requests.auth import HTTPBasicAuth
 from streamlit_folium import st_folium
-
-load_dotenv()
 
 
 @st.cache_data
@@ -49,8 +44,8 @@ def load_base_data() -> pd.DataFrame:
 def query_ne_iso_api(endpoint: str) -> dict:
     base_url = "https://webservices.iso-ne.com/api/v1.1"
     url = base_url + endpoint
-    username = os.getenv("NE_ISO_EMAIL")
-    password = os.getenv("NE_ISO_PASSWORD")
+    username = st.secrets["NE_ISO_EMAIL"]
+    password = st.secrets["NE_ISO_PASSWORD"]
     headers = {"Accept": "application/json"}
 
     # Make the GET request with basic authentication
