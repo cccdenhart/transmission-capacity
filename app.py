@@ -245,4 +245,4 @@ for _, row in df.iterrows():
                 )
                 end_point.add_to(m)
 
-st_data = st_folium(m, width=725)
+st_data = st_folium(m, width=725, returned_objects=["last_object_clicked"])
